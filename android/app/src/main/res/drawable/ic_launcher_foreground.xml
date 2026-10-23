@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!--
+      Voxel coyote (32×32 source) scaled into the adaptive-icon safe zone.
+      scale = 72/32 = 2.25, origin offset = 18.
+      rect (x,y,w,h) → (18+x*2.25, 18+y*2.25, w*2.25, h*2.25)
+    -->
+    <!-- ears -->
+    <path android:fillColor="#f59e0b" android:pathData="M27,22.5h9v9h-9z"/>
+    <path android:fillColor="#f59e0b" android:pathData="M27,31.5h9v9h-9z"/>
+    <path android:fillColor="#d97706" android:pathData="M36,31.5h9v9h-9z"/>
+    <path android:fillColor="#f59e0b" android:pathData="M72,22.5h9v9h-9z"/>
+    <path android:fillColor="#f59e0b" android:pathData="M72,31.5h9v9h-9z"/>
+    <path android:fillColor="#d97706" android:pathData="M63,31.5h9v9h-9z"/>
+    <!-- brow / top head -->
+    <path android:fillColor="#f59e0b" android:pathData="M27,40.5h9v9h-9z"/>
+    <path android:fillColor="#fbbf24" android:pathData="M36,40.5h9v9h-9z"/>
+    <path android:fillColor="#f59e0b" android:pathData="M45,40.5h9v9h-9z"/>
+    <path android:fillColor="#f59e0b" android:pathData="M54,40.5h9v9h-9z"/>
+    <path android:fillColor="#fbbf24" android:pathData="M63,40.5h9v9h-9z"/>
+    <path android:fillColor="#f59e0b" android:pathData="M72,40.5h9v9h-9z"/>
+    <!-- eyes row -->
+    <path android:fillColor="#f59e0b" android:pathData="M22.5,49.5h9v9h-9z"/>
+    <path android:fillColor="#fef3c7" android:pathData="M31.5,49.5h9v9h-9z"/>
+    <path android:fillColor="#171717" android:pathData="M40.5,49.5h9v9h-9z"/>
+    <path android:fillColor="#fbbf24" android:pathData="M49.5,49.5h9v9h-9z"/>
+    <path android:fillColor="#171717" android:pathData="M58.5,49.5h9v9h-9z"/>
+    <path android:fillColor="#fef3c7" android:pathData="M67.5,49.5h9v9h-9z"/>
+    <path android:fillColor="#f59e0b" android:pathData="M76.5,49.5h9v9h-9z"/>
+    <!-- snout -->
+    <path android:fillColor="#d97706" android:pathData="M31.5,58.5h9v9h-9z"/>
+    <path android:fillColor="#f59e0b" android:pathData="M40.5,58.5h9v9h-9z"/>
+    <path android:fillColor="#fef3c7" android:pathData="M49.5,58.5h9v9h-9z"/>
+    <path android:fillColor="#f59e0b" android:pathData="M58.5,58.5h9v9h-9z"/>
+    <path android:fillColor="#d97706" android:pathData="M67.5,58.5h9v9h-9z"/>
+    <!-- jaw -->
+    <path android:fillColor="#d97706" android:pathData="M40.5,67.5h9v9h-9z"/>
+    <path android:fillColor="#fef3c7" android:pathData="M49.5,67.5h9v9h-9z"/>
+    <path android:fillColor="#d97706" android:pathData="M58.5,67.5h9v9h-9z"/>
+    <!-- nose tip -->
+    <path android:fillColor="#0f172a" android:pathData="M49.5,76.5h9v6.75h-9z"/>
+</vector>

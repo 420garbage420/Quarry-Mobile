@@ -188,7 +188,7 @@ class LlamaService : Service() {
         val www = File(filesDir, "www")
         val exe = File(applicationInfo.nativeLibraryDir, "libllama_server.so")
         return try {
-            val p = ProcessBuilder(serverArgs(exe.path, www.path)).redirectErrorStream(true).start()
+            val p = startNative(serverArgs(exe.path, www.path))
             proc = p
             thread { p.inputStream.bufferedReader().forEachLine { Log.d("llama", it) } }
             // Match boot() patience (~5 min) — big models on FUSE exceed 21s easily
@@ -328,7 +328,7 @@ class LlamaService : Service() {
 
             if (gen != bootGen) return
 
-            var p = ProcessBuilder(serverArgs(exe.path, www.path)).redirectErrorStream(true).start()
+            var p = startNative(serverArgs(exe.path, www.path))
             proc = p
             run { val pp = p; thread { pp.inputStream.bufferedReader().forEachLine { Log.d("llama", it) } } }
             var retried = false
@@ -344,7 +344,7 @@ class LlamaService : Service() {
                         safeKv = true
                         Log.w(TAG, "Server exited with flash-attn/q8 KV defaults; retrying once with f16 KV")
                         updateNotification("Retrying without KV quantization…")
-                        p = ProcessBuilder(serverArgs(exe.path, www.path)).redirectErrorStream(true).start()
+                        p = startNative(serverArgs(exe.path, www.path))
                         proc = p
                         val pp = p
                         thread { pp.inputStream.bufferedReader().forEachLine { Log.d("llama", it) } }
@@ -398,7 +398,7 @@ class LlamaService : Service() {
                 "--host", "127.0.0.1", "--port", "8081",
                 "--embedding", "-c", "2048", "-b", "2048", "-ub", "2048", "-t", "2"
             )
-            val p = ProcessBuilder(args).redirectErrorStream(true).start()
+            val p = startNative(args)
             embProc = p
             thread { p.inputStream.bufferedReader().forEachLine { Log.d("llama-emb", it) } }
             thread {
@@ -451,7 +451,7 @@ class LlamaService : Service() {
                 "--mmproj", mmproj.path
             )
             Log.i(TAG, "OCR vision: ${ocr.name} + mmproj ${mmproj.name}")
-            val p = ProcessBuilder(args).redirectErrorStream(true).start()
+            val p = startNative(args)
             ocrProc = p
             thread { p.inputStream.bufferedReader().forEachLine { Log.d("llama-ocr", it) } }
             thread {
@@ -527,6 +527,17 @@ class LlamaService : Service() {
         } catch (_: Exception) {
             false
         }
+    }
+
+    /** Launch a ProcessBuilder with LD_LIBRARY_PATH pointing at nativeLibraryDir so
+     * the bundled libllama_server.so and its sibling .so files resolve correctly. */
+    private fun startNative(args: List<String>): Process {
+        val pb = ProcessBuilder(args).redirectErrorStream(true)
+        val libDir = applicationInfo.nativeLibraryDir
+        val env = pb.environment()
+        val existing = env["LD_LIBRARY_PATH"]
+        env["LD_LIBRARY_PATH"] = if (existing.isNullOrBlank()) libDir else "$libDir:$existing"
+        return pb.start()
     }
 
     private fun serverArgs(exe: String, www: String): List<String> {

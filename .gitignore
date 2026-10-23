@@ -1,0 +1,34 @@
+# Android / Gradle
+android/.gradle/
+android/local.properties
+android/**/build/
+android/**/.cxx/
+android/**/captures/
+android/**/*.apk
+android/**/*.ap_
+android/**/*.aab
+android/**/*.dex
+android/**/*.class
+android/**/bin/
+android/**/gen/
+android/**/out/
+android/**/.externalNativeBuild
+android/app/src/main/jniLibs/   # populated by CI; do not commit large binaries
+!android/app/src/main/jniLibs/.gitkeep
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Misc
+*.log
+.cache/

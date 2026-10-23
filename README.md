@@ -47,15 +47,75 @@ SSRF guard blocks localhost / private / link-local / CGNAT hostnames (browser-si
 
 Point Settings → base URL `http://127.0.0.1:8080/v1`, model name whatever the server reports (or `local`). No API key.
 
-## Build notes
+## Build (GitHub Actions / local)
 
-1. Drop a `libllama_server.so` (and related llama.cpp Android build) into `jniLibs` the same way Kojot does.
-2. Place GGUF paths via the service prefs keys `model_path` / coder path (see `LlamaService.resolveModel`).
-3. Open the `android/` folder in Android Studio, sync Gradle, run on device.
-4. For pure web use, open `www/index.html` (or the top-level `artifacts/quarry.html`) in a modern browser — search works without the native shell.
+The included **GitHub Actions workflow** (`.github/workflows/build-apk.yml`) produces a debug APK with **no extra installation** for the native servers:
+
+1. Downloads the official `llama-*-bin-android-arm64.tar.gz` from a pinned [llama.cpp release](https://github.com/ggml-org/llama.cpp/releases).
+2. Places `llama-server` as `jniLibs/arm64-v8a/libllama_server.so` (plus its shared libs) so `LlamaService` finds and launches it from `nativeLibraryDir`.
+3. Runs `./gradlew assembleDebug` and uploads the APK as a workflow artifact.
+
+**You still need to supply GGUF model files** on the device (chat / coder / embed / vision). The service resolves paths from SharedPreferences (`model_path`, coder path, etc. — see `LlamaService.resolveModel`). Models are not bundled (they are large).
+
+### Local build
+
+```bash
+cd android
+# Optional: pre-populate jniLibs yourself, or let the workflow do it
+./gradlew assembleDebug
+# APK: app/build/outputs/apk/debug/app-debug.apk
+```
+
+Requirements: JDK 17, Android SDK platform 34 + build-tools, NDK not required (prebuilts only).
+
+### Manual native libs (if not using CI)
+
+Drop the contents of an Android arm64 llama.cpp binary package into `android/app/src/main/jniLibs/arm64-v8a/`, renaming the server binary:
+
+```bash
+cp llama-server app/src/main/jniLibs/arm64-v8a/libllama_server.so
+cp lib*.so app/src/main/jniLibs/arm64-v8a/   # the supporting shared objects
+```
+
+Then open `android/` in Android Studio or run Gradle as above.
+
+## Keyless search + deep_fetch integration
+
+The free path (no Tavily key) uses DuckDuckGo HTML + SSRF-guarded fetch + HTML-to-text.
+
+### On-device dynamic extract (deeper integration)
+
+When running inside the Android shell, Quarry has a native bridge that mirrors deep_fetch’s CDP path:
+
+| Piece | Role |
+|-------|------|
+| `MainActivity.deepExtract(url)` | Off-screen WebView navigates the URL, waits for load + settle, returns post-JS `innerText` |
+| Native SSRF guard | Same public-host checks as the JS side (blocks localhost / private / CGNAT) |
+| `nativeDeepExtract()` in JS | Thin async wrapper around the bridge |
+| `ssrfFetch(..., { dynamic: true })` | Prefers native WebView; also auto-upgrades when static HTML yields &lt; ~280 chars |
+| `WebStack.search` (advanced) | Enrichment uses dynamic extract for top hits |
+| `WebStack.extract` (advanced / `dynamic:true`) | Uses native path when available; provider becomes `local-dynamic` |
+
+Plain browser `fetch` remains the fast default. Dynamic is used for:
+
+- `search_depth: "advanced"` enrichment
+- `extract_depth: "advanced"` or explicit `dynamic: true`
+- Heuristic fallback when static text is nearly empty (typical SPA shell)
+
+### Companion script
+
+`deep_fetch.py` remains useful on desktop / CI:
+
+- Pure asyncio wire client + optional Chrome CDP
+- Zero pip deps — drop next to the project or into a research VM
+- Same mental model: wire for speed, CDP/WebView for rendered DOM
+
+Keep tool names Tavily-compatible either way.
 
 ## Files
 
-- `www/index.html` / `artifacts/quarry.html` — upgraded single-file app
-- `android/.../LlamaService.kt` — adapted from Kojot
-- `android/.../MainActivity.kt` — WebView + bridge
+- `www/index.html` — upgraded single-file app (also copied into `android/.../assets/www/`)
+- `android/.../LlamaService.kt` — adapted from Kojot (foreground service, model slots, health)
+- `android/.../MainActivity.kt` — WebView + `QuarryNative` bridge + **deepExtract**
+- `.github/workflows/build-apk.yml` — CI that bundles llama-server and produces the APK
+- `deep_fetch.py` — optional dual-engine fetcher for desktop / stronger keyless extract

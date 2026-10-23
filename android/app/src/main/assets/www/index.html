@@ -2373,19 +2373,67 @@ function _assertPublicUrl(url) {
   if (_isBadHost(u.hostname)) throw new Error('SSRF blocked: private/reserved host ' + u.hostname);
   return u;
 }
-/** Agmem-style fetch → clean-ish text/markdown. Follows redirects only to public hosts. */
-async function ssrfFetch(url, { maxChars = 100000, signal, links = false } = {}) {
+
+/**
+ * Native dynamic extract via off-screen WebView (MainActivity.deepExtract).
+ * Same role as deep_fetch's Chrome CDP path: returns post-JS rendered text.
+ * Available only inside the Android shell (window.QuarryNative.deepExtract).
+ */
+async function nativeDeepExtract(url, { maxChars = 200000, timeoutMs = 12000, signal } = {}) {
+  if (!window.QuarryNative || typeof window.QuarryNative.deepExtract !== 'function') {
+    throw new Error('native deepExtract unavailable');
+  }
+  _assertPublicUrl(url);
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  await Promise.resolve();
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  let raw;
+  try {
+    raw = window.QuarryNative.deepExtract(url, timeoutMs | 0);
+  } catch (e) {
+    throw new Error('native deepExtract: ' + (e.message || e));
+  }
+  let data;
+  try { data = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch {
+    throw new Error('native deepExtract: bad JSON');
+  }
+  if (!data || !data.ok) throw new Error(data?.error || 'native deepExtract failed');
+  let text = (data.text || '').trim();
+  if (text.length > maxChars) text = text.slice(0, maxChars) + '\n…[truncated]';
+  return {
+    url: data.url || url,
+    text,
+    hrefs: [],
+    chars: text.length,
+    dynamic: true,
+    title: data.title || ''
+  };
+}
+
+/** Agmem-style fetch → clean-ish text/markdown. Follows redirects only to public hosts.
+ *  When `dynamic: true` (or plain text is suspiciously short) and native is present,
+ *  falls through to the off-screen WebView extract (deep_fetch-style post-JS DOM). */
+async function ssrfFetch(url, { maxChars = 100000, signal, links = false, dynamic = false } = {}) {
   _assertPublicUrl(url);
   await gate('web', 200, signal);
+
+  if (dynamic && window.QuarryNative && typeof window.QuarryNative.deepExtract === 'function') {
+    try {
+      return await nativeDeepExtract(url, { maxChars, timeoutMs: 14000, signal });
+    } catch (e) {
+      if (signal?.aborted) throw e;
+    }
+  }
+
   const res = await fetchRetry(url, {
     method: 'GET', signal,
     redirect: 'follow',
     headers: {
-      'User-Agent': 'QuarryResearch/2.0 (+local; Agmem-style fetch)',
-      'Accept': 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8'
+      'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 QuarryResearch/2.0',
+      'Accept': 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9'
     }
   }, { retries: 2, label: 'web' });
-  // re-check final URL if available
   try { if (res.url) _assertPublicUrl(res.url); } catch (e) { throw new Error(String(e.message || e)); }
   const ctype = (res.headers.get('Content-Type') || '').toLowerCase();
   const buf = await res.arrayBuffer();
@@ -2422,7 +2470,15 @@ async function ssrfFetch(url, { maxChars = 100000, signal, links = false } = {})
   }
   text = text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
   if (text.length > maxChars) text = text.slice(0, maxChars) + '\n…[truncated]';
-  // collect same-document links for map/crawl
+
+  // Heuristic upgrade: static HTML yielded almost nothing → try native WebView (SPA case)
+  if (!dynamic && text.length < 280 && window.QuarryNative && typeof window.QuarryNative.deepExtract === 'function') {
+    try {
+      const dyn = await nativeDeepExtract(url, { maxChars, timeoutMs: 14000, signal });
+      if (dyn.text && dyn.text.length > text.length + 80) return dyn;
+    } catch (_) { /* keep static */ }
+  }
+
   let hrefs = [];
   if (ctype.includes('html') || /^\s*<(!doctype|html)/i.test(raw)) {
     try {
@@ -2433,7 +2489,7 @@ async function ssrfFetch(url, { maxChars = 100000, signal, links = false } = {})
       }).filter(Boolean);
     } catch (_) { /* ignore */ }
   }
-  return { url: finalUrl, text, hrefs, chars: text.length };
+  return { url: finalUrl, text, hrefs, chars: text.length, dynamic: false };
 }
 
 /** DuckDuckGo HTML search (no API key). */
@@ -2517,13 +2573,17 @@ const WebStack = {
     // free path: DDG list, then optionally deepen a few pages
     const data = await ddgSearch(args.query, { maxResults: max, signal });
     // enrich top results with a light extract so KB gets real text (Tavily-like)
-    const depth = (args.search_depth || S.searchDepth) === 'advanced' ? Math.min(max, 4) : Math.min(max, 2);
+    // advanced depth + native shell → prefer dynamic (post-JS) extract for SPAs
+    const advanced = (args.search_depth || S.searchDepth) === 'advanced';
+    const depth = advanced ? Math.min(max, 4) : Math.min(max, 2);
+    const useDynamic = advanced && !!(window.QuarryNative && window.QuarryNative.deepExtract);
     for (let i = 0; i < depth && i < data.results.length; i++) {
       if (signal?.aborted) break;
       try {
-        const f = await ssrfFetch(data.results[i].url, { maxChars: 80000, signal });
+        const f = await ssrfFetch(data.results[i].url, { maxChars: 80000, signal, dynamic: useDynamic });
         data.results[i].raw_content = f.text;
         if (!data.results[i].content) data.results[i].content = f.text.slice(0, 400);
+        if (f.dynamic) data.results[i].dynamic = true;
       } catch (_) { /* keep snippet */ }
     }
     return data;
@@ -2534,17 +2594,20 @@ const WebStack = {
       const data = await tavily('extract', clean({ urls, extract_depth: args.extract_depth || 'basic', format: 'markdown' }), signal);
       return { results: data.results || [], failed: data.failed_results || [], provider: 'tavily' };
     }
+    // advanced extract_depth or explicit dynamic → use native WebView when available
+    const wantDynamic = (args.extract_depth === 'advanced' || args.dynamic === true) &&
+      !!(window.QuarryNative && window.QuarryNative.deepExtract);
     const results = [], failed = [];
     for (const url of urls) {
       if (signal?.aborted) break;
       try {
-        const f = await ssrfFetch(url, { maxChars: 200000, signal });
-        results.push({ url: f.url, raw_content: f.text });
+        const f = await ssrfFetch(url, { maxChars: 200000, signal, dynamic: wantDynamic });
+        results.push({ url: f.url, raw_content: f.text, dynamic: !!f.dynamic });
       } catch (e) {
         failed.push({ url, error: String(e.message || e).slice(0, 120) });
       }
     }
-    return { results, failed, provider: 'local' };
+    return { results, failed, provider: wantDynamic ? 'local-dynamic' : 'local' };
   },
   async map(args, signal) {
     if (S.tavilyKey) {

@@ -154,6 +154,20 @@ dialog { border-radius: 16px; box-shadow: var(--glow); }
 .slot-chip.chat { color: var(--verdigris); border-color: #2d5b54; }
 .slot-chip.coder { color: var(--accent); border-color: #2a4a7a; }
 .slot-chip.vision { color: var(--ochre); border-color: #6b5426; }
+#nativeModels { display: none; margin: 14px 0 6px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--slate); }
+#nativeModels.show { display: block; }
+#nativeModels h4 { margin: 0 0 8px; font: 650 13px var(--ui); color: var(--lime); }
+#nativeModels .nm-status { font: 12px var(--mono); color: var(--muted); margin: 0 0 10px; line-height: 1.45; word-break: break-all; }
+#nativeModels .nm-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+#nativeModels .nm-list { max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--basalt); }
+#nativeModels .nm-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); font: 12.5px var(--ui); }
+#nativeModels .nm-row:last-child { border-bottom: 0; }
+#nativeModels .nm-row .nm-name { flex: 1 1 140px; min-width: 0; color: var(--lime); word-break: break-all; }
+#nativeModels .nm-row .nm-meta { color: var(--faint); font: 11px var(--mono); white-space: nowrap; }
+#nativeModels .nm-row .nm-cat { font: 600 10px var(--mono); padding: 1px 6px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); text-transform: uppercase; }
+#nativeModels .nm-empty { padding: 14px; color: var(--muted); font-size: 13px; text-align: center; }
+#nativeModels .nm-hint { font-size: 12px; color: var(--faint); margin: 8px 0 0; line-height: 1.4; }
+
 @media (max-width: 600px) {
   .msg { max-width: none; }
   .composer { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
@@ -341,6 +355,22 @@ dialog.cmd { width: min(560px, 94vw); top: 12vh; margin: 0 auto; overflow: hidde
     <div class="field"><label for="sKey">API key (leave blank for local servers)</label><input id="sKey" type="password" autocomplete="off"></div>
     <div class="field"><label for="sModel">Model</label><input id="sModel" list="modelList" autocapitalize="off" spellcheck="false"><datalist id="modelList"></datalist>
       <div><button class="btn ghost small" id="sFetch">Test connection &amp; fetch models</button> <button class="btn ghost small" id="sAdd">Add profile</button> <button class="btn ghost small" id="sDel">Delete profile</button></div><small id="sStatus"></small></div>
+    <div id="nativeModels" aria-label="On-device models">
+      <h4>On-device models (llama.cpp)</h4>
+      <div class="nm-status" id="nmStatus">Checking native bridge…</div>
+      <div class="nm-actions">
+        <button type="button" class="btn ghost small" id="nmRefresh">Refresh list</button>
+        <button type="button" class="btn ghost small" id="nmAuto">Auto-bind folder</button>
+        <button type="button" class="btn ghost small" id="nmPickChat">Pick chat .gguf</button>
+        <button type="button" class="btn ghost small" id="nmPickCoder">Pick coder</button>
+        <button type="button" class="btn ghost small" id="nmPickEmb">Pick embed</button>
+        <button type="button" class="btn ghost small" id="nmPickOcr">Pick OCR</button>
+        <button type="button" class="btn ghost small" id="nmGrant">All-files access</button>
+        <button type="button" class="btn ghost small" id="nmRestart">Restart server</button>
+      </div>
+      <div class="nm-list" id="nmList"><div class="nm-empty">Open Settings on the APK to manage local GGUFs.</div></div>
+      <p class="nm-hint">Drop files in <code id="nmDir">Download/Local Models</code> (subfolders <code>llm/</code> <code>coder/</code> <code>embed/</code> <code>ocr/</code>). Paths are bound in place — no multi‑GB copy. Use list buttons to assign a file to a slot.</p>
+    </div>
     <div class="field"><label for="sTav">Tavily API key <span style="color:var(--faint);font-weight:400">(optional)</span></label><input id="sTav" type="password" autocomplete="off" placeholder="leave blank for free DuckDuckGo + local extract"><small>With a key, search/extract/crawl use Tavily. Without one, Quarry uses DuckDuckGo HTML + SSRF-guarded fetch (same tool names, works offline-key). Keys stay in localStorage.</small></div>
     <div class="two"><div class="field"><label for="sDepth">Default search depth</label><select id="sDepth"><option>basic</option><option>advanced</option></select></div>
       <div class="field"><label for="sMax">Results per search</label><input id="sMax" type="number" min="1" max="10"></div></div>
@@ -2724,6 +2754,227 @@ const ModelRouter = (() => {
   };
 })();
 
+/* ===== Native on-device GGUF binding (Android LlamaService) ===== */
+const NativeModels = (() => {
+  const bridge = () => window.QuarryNative || window.KojotBridge || null;
+  let pending = new Map();
+  let nextId = 1;
+
+  // Install reply sink once
+  if (!window.__quarryReplyInstalled) {
+    window.__quarryReplyInstalled = true;
+    const reply = (id, ok, payload) => {
+      const p = pending.get(id);
+      if (!p) return;
+      pending.delete(id);
+      let data = payload;
+      if (typeof payload === 'string') {
+        try { data = JSON.parse(payload); } catch { data = payload; }
+      }
+      if (ok) p.resolve(data);
+      else p.reject(new Error(typeof data === 'string' ? data : (data && data.error) || 'native error'));
+    };
+    window.__quarryReply = reply;
+    window.__kojotReply = reply;
+    window.__nativeReply = reply;
+  }
+
+  function available() {
+    const b = bridge();
+    return !!(b && (typeof b.call === 'function' || typeof b.info === 'function'));
+  }
+
+  function call(op, args) {
+    const b = bridge();
+    if (!b || typeof b.call !== 'function') {
+      return Promise.reject(new Error('Native bridge call() not available'));
+    }
+    const id = nextId++;
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      try {
+        b.call(id, op, JSON.stringify(args || {}));
+      } catch (e) {
+        pending.delete(id);
+        reject(e);
+      }
+      setTimeout(() => {
+        if (pending.has(id)) {
+          pending.delete(id);
+          reject(new Error('native timeout: ' + op));
+        }
+      }, 60000);
+    });
+  }
+
+  function info() {
+    const b = bridge();
+    if (!b || typeof b.info !== 'function') return null;
+    try {
+      const r = b.info();
+      return typeof r === 'string' ? JSON.parse(r) : r;
+    } catch { return null; }
+  }
+
+  function health() {
+    const b = bridge();
+    if (!b || typeof b.health !== 'function') return null;
+    try {
+      const r = b.health();
+      return typeof r === 'string' ? JSON.parse(r) : r;
+    } catch { return null; }
+  }
+
+  function fmtMb(n) {
+    if (!Number.isFinite(n)) return '';
+    if (n >= 1024) return (n / 1024).toFixed(1) + ' GB';
+    return Math.round(n) + ' MB';
+  }
+
+  function statusHtml(inf) {
+    if (!inf) return 'Native bridge present, but info() unavailable.';
+    const bits = [];
+    bits.push(inf.server_ready ? 'server ready' : 'server not ready');
+    if (inf.active_slot) bits.push('slot ' + inf.active_slot);
+    if (inf.model_present) bits.push('chat: ' + (inf.model_name || 'bound'));
+    else bits.push('chat: unbound');
+    if (inf.coder_model) bits.push('coder: ' + (inf.coder_name || 'bound'));
+    if (inf.embed_model) bits.push('embed: ' + (inf.emb_name || 'bound'));
+    if (inf.ocr_path || inf.ocr_name) bits.push('ocr: ' + (inf.ocr_name || 'bound'));
+    if (inf.models_dir) bits.push('dir ' + inf.models_dir);
+    if (inf.files === false) bits.push('needs All-files access');
+    return bits.join(' · ');
+  }
+
+  function renderList(models) {
+    const el = document.getElementById('nmList');
+    if (!el) return;
+    if (!models || !models.length) {
+      el.innerHTML = '<div class="nm-empty">No .gguf files found. Put them in Download/Local Models (or llm/coder/embed/ocr) and tap Refresh.</div>';
+      return;
+    }
+    el.innerHTML = models.map(m => {
+      const name = String(m.name || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+      const path = String(m.path || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const cat = String(m.category || m.suggest_slot || 'root');
+      const mb = fmtMb(+m.mb || ((+m.size || 0) / 1048576));
+      return `<div class="nm-row">
+        <span class="nm-cat">${cat}</span>
+        <span class="nm-name" title="${name}">${name}</span>
+        <span class="nm-meta">${mb}</span>
+        <button type="button" class="btn ghost small" data-bind="chat" data-path="${path}">Chat</button>
+        <button type="button" class="btn ghost small" data-bind="coder" data-path="${path}">Coder</button>
+        <button type="button" class="btn ghost small" data-bind="emb" data-path="${path}">Embed</button>
+        <button type="button" class="btn ghost small" data-bind="ocr" data-path="${path}">OCR</button>
+      </div>`;
+    }).join('');
+  }
+
+  async function refresh() {
+    const st = document.getElementById('nmStatus');
+    const dirEl = document.getElementById('nmDir');
+    try {
+      const inf = info();
+      if (st) st.textContent = statusHtml(inf);
+      if (dirEl && inf && inf.models_dir) dirEl.textContent = inf.models_dir;
+      const r = await call('list_models', {});
+      renderList(r.models || []);
+      if (st && r.text) st.textContent = statusHtml(inf) + ' · ' + r.text;
+    } catch (e) {
+      if (st) st.textContent = 'List failed: ' + (e.message || e);
+      renderList([]);
+    }
+  }
+
+  async function bind(path, slot) {
+    const st = document.getElementById('nmStatus');
+    try {
+      if (st) st.textContent = 'Binding ' + slot + '…';
+      const r = await call('select_model', { path, slot });
+      if (st) st.textContent = r.text || ('Bound ' + slot);
+      // Prefer on-device profile after bind
+      try {
+        const b = bridge();
+        if (b && typeof b.localPreset === 'function') {
+          const preset = JSON.parse(b.localPreset());
+          const base = document.getElementById('sBase');
+          const model = document.getElementById('sModel');
+          const key = document.getElementById('sKey');
+          if (base && preset.baseUrl) base.value = preset.baseUrl;
+          if (model) model.value = preset.model || 'local';
+          if (key) key.value = '';
+          const status = document.getElementById('sStatus');
+          if (status) status.textContent = 'Profile fields set to on-device llama.cpp — Save to keep.';
+        }
+      } catch (_) {}
+      await refresh();
+    } catch (e) {
+      if (st) st.textContent = 'Bind failed: ' + (e.message || e);
+    }
+  }
+
+  function wire() {
+    const panel = document.getElementById('nativeModels');
+    if (!panel || !available()) return;
+    panel.classList.add('show');
+    const on = (id, fn) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', fn);
+    };
+    on('nmRefresh', () => refresh());
+    on('nmAuto', async () => {
+      const st = document.getElementById('nmStatus');
+      try {
+        if (st) st.textContent = 'Auto-binding…';
+        const r = await call('auto_bind', {});
+        if (st) st.textContent = r.text || 'done';
+        await refresh();
+      } catch (e) { if (st) st.textContent = String(e.message || e); }
+    });
+    on('nmPickChat', () => call('pick_model', {}).then(r => {
+      const st = document.getElementById('nmStatus');
+      if (st) st.textContent = r.text || 'picker opened';
+    }).catch(e => alert(e.message)));
+    on('nmPickCoder', () => call('pick_coder', {}).catch(e => alert(e.message)));
+    on('nmPickEmb', () => call('pick_embedding', {}).catch(e => alert(e.message)));
+    on('nmPickOcr', () => call('pick_ocr', {}).catch(e => alert(e.message)));
+    on('nmGrant', () => call('grant', {}).then(r => {
+      const st = document.getElementById('nmStatus');
+      if (st) st.textContent = r.text || 'opened settings';
+    }).catch(e => alert(e.message)));
+    on('nmRestart', () => call('restart', {}).then(r => {
+      const st = document.getElementById('nmStatus');
+      if (st) st.textContent = r.text || 'restarting';
+    }).catch(e => alert(e.message)));
+
+    const list = document.getElementById('nmList');
+    if (list) list.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-bind]');
+      if (!btn) return;
+      const path = btn.getAttribute('data-path');
+      const slot = btn.getAttribute('data-bind');
+      if (path && slot) bind(path, slot);
+    });
+
+    // Refresh when Settings opens
+    const btnSet = document.getElementById('btnSet');
+    if (btnSet) btnSet.addEventListener('click', () => setTimeout(refresh, 120));
+    // Initial status
+    setTimeout(refresh, 400);
+  }
+
+  // Loading overlay hook used by native MainActivity
+  window.__modelLoading = function (loading, message) {
+    try {
+      const st = document.getElementById('status') || document.getElementById('nmStatus');
+      if (st && message) st.textContent = loading ? message : (st.textContent || '');
+    } catch (_) {}
+  };
+
+  return { available, call, info, health, refresh, wire };
+})();
+
+
 const clean = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && !(Array.isArray(v) && !v.length) && v !== ''));
 const clampN = (v, a, b, d) => { v = parseInt(v, 10); return Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : d; };
 const cap = (s, n) => String(s || '').length > n ? String(s).slice(0, n) : String(s || '');
@@ -3849,9 +4100,13 @@ document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && !e.a
         p.baseUrl = preset.baseUrl; p.model = p.model || preset.model; p.name = p.name || preset.name; p.preset = 'custom';
         saveSettings();
         addNote('On-device llama.cpp detected at ' + preset.baseUrl + '. Model slot: ' + (ModelRouter.slot || 'chat') + '.');
+      try { if (window.NativeModels) NativeModels.wire(); } catch (_) {}
       }
     } catch (_) { /* ignore */ }
   }
+    
+  try { if (window.NativeModels && NativeModels.available()) NativeModels.wire(); } catch (_) {}
+
     if (!profileReady(activeProfile()) && bootDone) addNote('Open Settings and pick a model: a hosted provider with an API key, or a local server (Ollama, LM Studio, on-device llama.cpp) with no key. Web search works keyless; optional Tavily key upgrades quality.');
 })();
 </script>

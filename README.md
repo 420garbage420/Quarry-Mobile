@@ -47,6 +47,45 @@ SSRF guard blocks localhost / private / link-local / CGNAT hostnames (browser-si
 
 Point Settings → base URL `http://127.0.0.1:8080/v1`, model name whatever the server reports (or `local`). No API key.
 
+## Local model loading (Kojot-style)
+
+Models stay on disk — **no multi-GB copy** into app storage. Paths are stored in SharedPreferences and passed straight to `llama-server`.
+
+### Ways to bind a GGUF
+
+1. **Folder auto-bind (default)**  
+   Drop files under `Download/Local Models/` (created on first run). Optional category subfolders:
+   - `llm/` or `decision/` → chat slot  
+   - `coder/` → coder slot  
+   - `embed/` → embedding server (`:8081`)  
+   - `ocr/` or `image/` → vision/OCR (`:8082`, lazy)  
+   On launch, empty slots are filled from the first readable `.gguf` in those folders (mmproj files are ignored).
+
+2. **In-app list (preferred on Samsung)**  
+   Bridge ops `list_models` / `select_model` walk the models folder and bind by real path + slot (`chat` | `coder` | `emb` | `ocr` | `auto`).
+
+3. **System SAF picker**  
+   `pick_model` / `pick_coder` / `pick_embedding` / `pick_ocr` open the document picker. Native code resolves a real filesystem path (DocumentsContract + MediaStore + name search under Local Models). If the path cannot be resolved, the UI refuses a silent multi-GB copy and points you at the folder method.
+
+4. **Custom models root**  
+   `set_models_dir` / `get_models_dir` change the scan root (default remains `Download/Local Models`).
+
+### Bridge surface (`window.QuarryNative` / `KojotBridge`)
+
+| Call | Purpose |
+|------|---------|
+| `info()` / `health()` | Bound paths, readiness, slots |
+| `call(id, op, argsJson)` | Async ops → `__quarryReply(id, ok, payload)` |
+| ops | `list_models`, `select_model`, `pick_*`, `delete_*`, `auto_bind`, `set_models_dir`, `grant`, `swap_model`, `restart` |
+| `swapModel(slot)` | Soft-swap chat ↔ coder (service stays alive) |
+| `localPreset()` | `{ baseUrl: http://127.0.0.1:8080/v1, model: local }` |
+
+Grant **All files access** (`grant` op) so external GGUFs remain readable after reboot.
+
+## Icon
+
+Adaptive launcher uses a **voxel quarry cut** (stone blocks + verdigris ore vein) on basalt `#121317` — distinct from Kojot’s coyote.
+
 ## Build (GitHub Actions / local)
 
 The included **GitHub Actions workflow** (`.github/workflows/build-apk.yml`) produces a debug APK with **no extra installation** for the native servers:

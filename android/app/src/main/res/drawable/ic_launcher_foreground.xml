@@ -5,42 +5,63 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <!--
-      Voxel coyote (32×32 source) scaled into the adaptive-icon safe zone.
+      Voxel quarry block (32×32 source) scaled into the adaptive-icon safe zone.
       scale = 72/32 = 2.25, origin offset = 18.
-      rect (x,y,w,h) → (18+x*2.25, 18+y*2.25, w*2.25, h*2.25)
+      Theme: cut stone face + verdigris ore vein (Quarry brand).
     -->
-    <!-- ears -->
-    <path android:fillColor="#f59e0b" android:pathData="M27,22.5h9v9h-9z"/>
-    <path android:fillColor="#f59e0b" android:pathData="M27,31.5h9v9h-9z"/>
-    <path android:fillColor="#d97706" android:pathData="M36,31.5h9v9h-9z"/>
-    <path android:fillColor="#f59e0b" android:pathData="M72,22.5h9v9h-9z"/>
-    <path android:fillColor="#f59e0b" android:pathData="M72,31.5h9v9h-9z"/>
-    <path android:fillColor="#d97706" android:pathData="M63,31.5h9v9h-9z"/>
-    <!-- brow / top head -->
-    <path android:fillColor="#f59e0b" android:pathData="M27,40.5h9v9h-9z"/>
-    <path android:fillColor="#fbbf24" android:pathData="M36,40.5h9v9h-9z"/>
-    <path android:fillColor="#f59e0b" android:pathData="M45,40.5h9v9h-9z"/>
-    <path android:fillColor="#f59e0b" android:pathData="M54,40.5h9v9h-9z"/>
-    <path android:fillColor="#fbbf24" android:pathData="M63,40.5h9v9h-9z"/>
-    <path android:fillColor="#f59e0b" android:pathData="M72,40.5h9v9h-9z"/>
-    <!-- eyes row -->
-    <path android:fillColor="#f59e0b" android:pathData="M22.5,49.5h9v9h-9z"/>
-    <path android:fillColor="#fef3c7" android:pathData="M31.5,49.5h9v9h-9z"/>
-    <path android:fillColor="#171717" android:pathData="M40.5,49.5h9v9h-9z"/>
-    <path android:fillColor="#fbbf24" android:pathData="M49.5,49.5h9v9h-9z"/>
-    <path android:fillColor="#171717" android:pathData="M58.5,49.5h9v9h-9z"/>
-    <path android:fillColor="#fef3c7" android:pathData="M67.5,49.5h9v9h-9z"/>
-    <path android:fillColor="#f59e0b" android:pathData="M76.5,49.5h9v9h-9z"/>
-    <!-- snout -->
-    <path android:fillColor="#d97706" android:pathData="M31.5,58.5h9v9h-9z"/>
-    <path android:fillColor="#f59e0b" android:pathData="M40.5,58.5h9v9h-9z"/>
-    <path android:fillColor="#fef3c7" android:pathData="M49.5,58.5h9v9h-9z"/>
-    <path android:fillColor="#f59e0b" android:pathData="M58.5,58.5h9v9h-9z"/>
-    <path android:fillColor="#d97706" android:pathData="M67.5,58.5h9v9h-9z"/>
-    <!-- jaw -->
-    <path android:fillColor="#d97706" android:pathData="M40.5,67.5h9v9h-9z"/>
-    <path android:fillColor="#fef3c7" android:pathData="M49.5,67.5h9v9h-9z"/>
-    <path android:fillColor="#d97706" android:pathData="M58.5,67.5h9v9h-9z"/>
-    <!-- nose tip -->
-    <path android:fillColor="#0f172a" android:pathData="M49.5,76.5h9v6.75h-9z"/>
+    <!-- back wall / deep stone -->
+    <path android:fillColor="#3f4450" android:pathData="M27,27h9v9h-9z"/>
+    <path android:fillColor="#3f4450" android:pathData="M36,27h9v9h-9z"/>
+    <path android:fillColor="#4a5160" android:pathData="M45,27h9v9h-9z"/>
+    <path android:fillColor="#3f4450" android:pathData="M54,27h9v9h-9z"/>
+    <path android:fillColor="#3f4450" android:pathData="M63,27h9v9h-9z"/>
+    <path android:fillColor="#4a5160" android:pathData="M72,27h9v9h-9z"/>
+
+    <path android:fillColor="#4a5160" android:pathData="M27,36h9v9h-9z"/>
+    <path android:fillColor="#5a6270" android:pathData="M36,36h9v9h-9z"/>
+    <path android:fillColor="#4a5160" android:pathData="M45,36h9v9h-9z"/>
+    <path android:fillColor="#5a6270" android:pathData="M54,36h9v9h-9z"/>
+    <path android:fillColor="#4a5160" android:pathData="M63,36h9v9h-9z"/>
+    <path android:fillColor="#3f4450" android:pathData="M72,36h9v9h-9z"/>
+
+    <!-- mid tier: quarry ledge -->
+    <path android:fillColor="#6b7380" android:pathData="M22.5,45h9v9h-9z"/>
+    <path android:fillColor="#7a8494" android:pathData="M31.5,45h9v9h-9z"/>
+    <path android:fillColor="#6b7380" android:pathData="M40.5,45h9v9h-9z"/>
+    <path android:fillColor="#8a94a4" android:pathData="M49.5,45h9v9h-9z"/>
+    <path android:fillColor="#6b7380" android:pathData="M58.5,45h9v9h-9z"/>
+    <path android:fillColor="#7a8494" android:pathData="M67.5,45h9v9h-9z"/>
+    <path android:fillColor="#5a6270" android:pathData="M76.5,45h9v9h-9z"/>
+
+    <!-- cut face (lighter stone) -->
+    <path android:fillColor="#8a94a4" android:pathData="M27,54h9v9h-9z"/>
+    <path android:fillColor="#9aa3ad" android:pathData="M36,54h9v9h-9z"/>
+    <path android:fillColor="#8a94a4" android:pathData="M45,54h9v9h-9z"/>
+    <path android:fillColor="#a8b0ba" android:pathData="M54,54h9v9h-9z"/>
+    <path android:fillColor="#8a94a4" android:pathData="M63,54h9v9h-9z"/>
+    <path android:fillColor="#7a8494" android:pathData="M72,54h9v9h-9z"/>
+
+    <!-- verdigris ore vein (brand accent) -->
+    <path android:fillColor="#2d7a70" android:pathData="M40.5,54h9v9h-9z"/>
+    <path android:fillColor="#3d9b8f" android:pathData="M49.5,54h9v9h-9z"/>
+    <path android:fillColor="#4db3a5" android:pathData="M45,63h9v9h-9z"/>
+    <path android:fillColor="#3d9b8f" android:pathData="M54,63h9v9h-9z"/>
+
+    <!-- lower blocks / rubble -->
+    <path android:fillColor="#5a6270" android:pathData="M22.5,63h9v9h-9z"/>
+    <path android:fillColor="#6b7380" android:pathData="M31.5,63h9v9h-9z"/>
+    <path android:fillColor="#4a5160" android:pathData="M63,63h9v9h-9z"/>
+    <path android:fillColor="#5a6270" android:pathData="M72,63h9v9h-9z"/>
+    <path android:fillColor="#3f4450" android:pathData="M76.5,63h9v9h-9z"/>
+
+    <path android:fillColor="#4a5160" android:pathData="M27,72h9v9h-9z"/>
+    <path android:fillColor="#5a6270" android:pathData="M36,72h9v9h-9z"/>
+    <path android:fillColor="#3f4450" android:pathData="M45,72h9v9h-9z"/>
+    <path android:fillColor="#4a5160" android:pathData="M54,72h9v9h-9z"/>
+    <path android:fillColor="#5a6270" android:pathData="M63,72h9v9h-9z"/>
+    <path android:fillColor="#3f4450" android:pathData="M72,72h9v9h-9z"/>
+
+    <!-- small highlight cubes (chisel marks) -->
+    <path android:fillColor="#c5ccd4" android:pathData="M36,45h4.5v4.5h-4.5z"/>
+    <path android:fillColor="#c5ccd4" android:pathData="M58.5,54h4.5v4.5h-4.5z"/>
 </vector>
